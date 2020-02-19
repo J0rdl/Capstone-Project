@@ -1,0 +1,251 @@
+# Obtain data from yahoo
+
+getSymbols ("GOOGL", src="yahoo", from="2020-01-03", to="2020-02-03")
+
+View(GOOGL)
+class(GOOGL)
+
+# Data exploratory
+
+# Copy of original data 
+
+GOOGL_Tech <- GOOGL
+
+GOOGL_Close <- GOOGL_Tech$GOOGL.Close
+
+
+# ACF
+#The function Acf computes (and by default plots) an estimate of the autocorrelation function of a univariate time series. 
+
+#PACF
+#Function Pacf computes (and by default plots) an estimate of the partial autocorrelation function of a univariate time series.
+
+
+#A stationary (time) series is one whose statistical properties such as the mean, 
+variance and autocorrelation are all constant over time. Hence, a non-stationary series
+is one whose statistical properties change over time.
+
+acf(GOOGL_Close) 
+pacf(GOOGL_Close)
+
+#acf(lnstock, lag.max = 20)
+#pacf(lnstock, lag.max = 20)
+
+#lag.max: maximum lag at which to calculate the acf. Default is 10*log10(N/m) where N is the number of observations
+and m the number of series. Will be automatically limited to one less than the number of observations in the series.
+
+diff_GOOGL_Close<- diff(GOOGL_Close,1)
+diff_GOOGL_Close
+
+#difflnstock <- diff(lnstock,1)
+#difflnstock
+
+
+# GOOGL_Close is non stationary data
+adf.test(GOOGL_Close)
+
+
+# diff_GOOGL_Close is stationary data
+#adf.test(diff_GOOGL_Close)
+
+# using original data because auuto arima select differences automatically 
+#Time series and autoarima
+
+
+# Technical analysis indicators
+
+#myATR <- function(x) ATR(HLC(x))[,'atr'] # Average True Range, measures volatility of series  
+#mySMI <- function(x) SMI(HLC(x))[, "SMI"] #  Stochastic Momentum Index 
+#myADX <- function(x) ADX(HLC(x))[,'ADX'] # Welles Wilder's Directional Movement Index 
+#myAroon <- function(x) aroon(cbind(Hi(x),Lo(x)))$oscillator # Identify starting trends
+#myBB <- function(x) BBands(HLC(x))[, "pctB"] # Bollinger Bands
+#myChaikinVol <- function(x) Delt(chaikinVolatility(cbind(Hi(x),Lo(x))))[, 1] # Chaikin Volatility
+#myCLV <- function(x) EMA(CLV(HLC(x)))[, 1] # Close Location Value 
+#myEMV <- function(x) EMV(cbind(Hi(x),Lo(x)),Vo(x))[,2] # Arms' Ease of Movement Value 
+#myMACD <- function(x) MACD(Cl(x))[,2] # Moving Average Convergence Divergence
+#myMFI <- function(x) MFI(HLC(x), Vo(x)) # Money Flow Index
+#mySAR <- function(x) SAR(cbind(Hi(x),Cl(x))) [,1] # Parabolic Stop-and-Reverse
+#myVolat <- function(x) volatility(OHLC(x),calc="garman")[,1] # volatility
+
+#correlation <- cor(GOOGL_Tech_Indicators)
+
+
+
+# Convert to Data Frame Function
+xts2data.frame = function(x) {
+  df = data.frame(x=index(x), coredata(x))
+  # Preserve the column names from the xts object 
+  #  and use "Date" as the new column for new date column
+  colnames(df) = c("Date", colnames(x))
+  return(df)
+}
+
+#Convert to Data Frame
+GOOGL_Tech <- xts2data.frame(GOOGL_Tech)
+
+str(GOOGL_Tech)
+head(GOOGL_Tech)
+
+# ARIMA Model
+
+GOOGL_Date_Close <- data.frame(GOOGL_Tech$Date, GOOGL_Tech$GOOGL.Close)
+
+View(GOOGL_Date_Close)
+plot(GOOGL_Date_Close, type = 'l')
+
+# GOOGLE Closing Price
+
+GOOGL_Close <- GOOGL_Tech$GOOGL.Close
+
+# Fit model
+
+Price_ARIMA <- ts(GOOGL_Close)
+plot(Price_ARIMA)
+Fit_Model <- auto.arima(Price_ARIMA)
+
+# forecasted values ARIMA
+
+Forecasted_Values <-  forecast(Fit_Model, h = 2)
+
+Forecasted_Values
+
+plot(Forecasted_Values)
+
+# Forecasted mean values
+Forecasted_Values_Mean <- as.numeric(Forecasted_Values$mean)
+
+Forecasted_Values_Mean
+
+
+# Accuracy data 1
+
+GOOGL_Train <- GOOGL_Tech$GOOGL.Close[0:18]
+Price_ARIMA_Train <- ts(GOOGL_Train)
+plot(Price_ARIMA_Train , type = 'l')
+
+Fit_GOOGL_Train <- auto.arima(Price_ARIMA_Train)
+Forecasted_Values_GOOGL_Train <-forecast(Fit_GOOGL_Train, h = 2)
+Forecasted_Values_GOOGL_Train
+
+# Plot Forecasted Values
+plot(Forecasted_Values_GOOGL_Train)
+
+# Points Closing Price
+points((19:20), GOOGL_Tech$GOOGL.Close[19:20])
+
+
+# Values real data vs values forecasted
+Close_ValuesVSForecasted <- data.frame(GOOGL_Tech$GOOGL.Close[19:20], Forecasted_Values_GOOGL_Train) 
+View(Close_ValuesVSForecasted)
+
+# Accuracy percentatge calculation
+Accuracy_ARIMA <- ({GOOGL_Tech$GOOGL.Close[19:20] - Close_ValuesVSForecasted$Point.Forecast}/
+{GOOGL_Tech$GOOGL.Close[19:20]})
+Accuracy_ARIMA
+
+
+
+# Accuracy data 2
+
+GOOGL_Train_1 <- GOOGL_Tech$GOOGL.Close[0:10]
+Price_ARIMA_Train_1 <- ts(GOOGL_Train_1)
+plot(Price_ARIMA_Train_1 , type = 'l')
+
+Fit_GOOGL_Train_1 <- auto.arima(Price_ARIMA_Train_1)
+Forecasted_Values_GOOGL_Train_1 <-forecast(Fit_GOOGL_Train_1, h = 2)
+Forecasted_Values_GOOGL_Train_1
+
+# Plot Forecasted Values
+plot(Forecasted_Values_GOOGL_Train_1)
+
+# Points Closing Price
+points((11:12), GOOGL_Tech$GOOGL.Close[11:12])
+
+# Values real data vs values forecasted
+Close_ValuesVSForecasted_1 <- data.frame(GOOGL_Tech$GOOGL.Close[11:12], Forecasted_Values_GOOGL_Train_1) 
+View(Close_ValuesVSForecasted_1)
+
+# Accuracy percentatge calculation
+Accuracy_ARIMA_1 <- ({GOOGL_Tech$GOOGL.Close[11:12] - Close_ValuesVSForecasted_1$Point.Forecast}/
+{GOOGL_Tech$GOOGL.Close[11:12]})
+Accuracy_ARIMA_1
+
+
+
+# NNFOR Model
+
+nrow(GOOGL_Tech)
+
+GOOGL_NNFOR <- ts(GOOGL_Tech$GOOGL.Close, start = c(1), end = c(nrow(GOOGL_Tech)), frequency = 1)
+
+str(GOOGL_NNFOR)
+
+plot(GOOGL_NNFOR, ylab="Value", type="o", pch =20)
+
+GOOGL_NNFOR_fit1 <- mlp(GOOGL_NNFOR)
+print(GOOGL_NNFOR_fit1 )
+plot(GOOGL_NNFOR_fit1)
+
+
+GOOGL_NNFOR_frc <- forecast(GOOGL_NNFOR_fit1,h=2)
+print(GOOGL_NNFOR_frc)
+plot(GOOGL_NNFOR_frc)
+
+
+# NNFOR Accuracy 1
+
+GOOGL_NNFOR <- ts(GOOGL_Tech$GOOGL.Close, start = c(1), end = c(18), frequency = 1)
+
+str(GOOGL_NNFOR)
+
+plot(GOOGL_NNFOR, ylab="Value", type="o", pch =20)
+
+GOOGL_NNFOR_fit1 <- mlp(GOOGL_NNFOR)
+print(GOOGL_NNFOR_fit1 )
+plot(GOOGL_NNFOR_fit1)
+
+
+GOOGL_NNFOR_frc <- forecast(GOOGL_NNFOR_fit1,h=2)
+print(GOOGL_NNFOR_frc)
+plot(GOOGL_NNFOR_frc)
+points((19:20), GOOGL_Tech$GOOGL.Close[19:20])
+
+
+# Values real data vs values forecasted
+Close_ValuesVSForecasted_NNFOR <- data.frame(GOOGL_Tech$GOOGL.Close[19:20], GOOGL_NNFOR_frc) 
+View(Close_ValuesVSForecasted_NNFOR)
+
+# Accuracy percentatge calculation
+Accuracy_NNFOR <- ({Close_ValuesVSForecasted_NNFOR$GOOGL_Tech.GOOGL.Close.19.20.- Close_ValuesVSForecasted_NNFOR$Point.Forecast}/
+{Close_ValuesVSForecasted_NNFOR$GOOGL_Tech.GOOGL.Close.19.20.})
+Accuracy_NNFOR
+
+
+# NNFOR Accuracy 2
+
+GOOGL_NNFOR_1 <- ts(GOOGL_Tech$GOOGL.Close, start = c(1), end = c(10), frequency = 1)
+
+str(GOOGL_NNFOR_1)
+
+plot(GOOGL_NNFOR_1, ylab="Value", type="o", pch =20)
+
+GOOGL_NNFOR_1_fit1 <- mlp(GOOGL_NNFOR_1)
+print(GOOGL_NNFOR_1_fit1 )
+plot(GOOGL_NNFOR_1_fit1)
+
+
+GOOGL_NNFOR_1_frc <- forecast(GOOGL_NNFOR_1_fit1,h=2)
+print(GOOGL_NNFOR_1_frc)
+plot(GOOGL_NNFOR_1_frc)
+points((11:12), GOOGL_Tech$GOOGL.Close[11:12])
+
+
+# Values real data vs values forecasted
+Close_ValuesVSForecasted_NNFOR_1 <- data.frame(GOOGL_Tech$GOOGL.Close[11:12], GOOGL_NNFOR_1_frc) 
+View(Close_ValuesVSForecasted_NNFOR_1)
+
+# Accuracy percentatge calculation
+Accuracy_NNFOR_1 <- ({Close_ValuesVSForecasted_NNFOR_1$GOOGL_Tech.GOOGL.Close.11.12.- Close_ValuesVSForecasted_NNFOR_1$Point.Forecast}/
+{Close_ValuesVSForecasted_NNFOR_1$GOOGL_Tech.GOOGL.Close.11.12.})
+Accuracy_NNFOR
+
