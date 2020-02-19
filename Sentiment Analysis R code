@@ -1,0 +1,271 @@
+#obtain data from Twitter
+
+download.file(url="http://curl.haxx.se/ca/cacert.pem",destfile="cacert.pem")
+
+requestURL <- "https://api.twitter.com/oauth/request_token"
+
+accessURL <- "https://api.twitter.com/oauth/access_token"
+
+consumerKey <- "Ir82yBP6oa5oTwPMGGn9mXIiH"
+consumerSecret <- "laNK1868hjFZMSlw62GanhXtUt19nBNXiuSkBjoaAbTztsSI1v"
+accessToken <- "1186445559655215104-ZsMSXgo7Db6R4FgynIXCvETneRRQil"
+accessTokenSecret <- "GMDGyEMSUJuSVEmXdbTmswmIDSXF8HZsndUC2HDKhzEEK"
+
+setup_twitter_oauth(consumerKey, consumerSecret, accessToken,accessTokenSecret) 
+
+
+# Twitter_data_1 <- searchTwitter("$GOOGL", resultType = NULL, n=2, lang='en', since = '2020-01-27', until = '2020-02-01')
+
+# Convert to DF
+# DF_Twitter_data <- twListToDF(Twitter_data)
+
+# Save as csv
+# write.csv(DF_Twitter_data, "c:/Users/J/Desktop/PROJECT/Twitter_data.csv")
+
+# Read csv files
+
+mydata1 <- read.csv("GOOGL_09_01_2020.csv", header = T)
+mydata2 <- read.csv("GOOGL_10_01_2020.csv", header = T)
+mydata3 <- read.csv("GOOGL_11_01_2020.csv", header = T)
+mydata4 <- read.csv("GOOGL_15_01_2020.csv", header = T)
+mydata5 <- read.csv("GOOGL_16_01_2020.csv", header = T)
+mydata6 <- read.csv("GOOGL_20_01_2020.csv", header = T)
+mydata7 <- read.csv("GOOGL_25_01_2020.csv", header = T)
+mydata8 <- read.csv("GOOGL_02_02_2020.csv", header = T)
+mydata9 <- read.csv("GOOGL_05_02_2020.csv", header = T)
+
+#Combine files
+mydata <- rbind(mydata1, mydata2, mydata3, mydata4, mydata5, mydata6, mydata7, mydata8, mydata9)
+
+# Order by date
+mydata <- mydata[order(mydata$created),]
+
+# View data
+head(mydata)
+str(mydata)
+
+# Copy of my data
+x <- mydata
+
+#Clean text
+
+x$text <- gsub("http\\S+\\s*", " ",x$text) ## Remove URLs
+x$text <- gsub("\\b+RT", " ",x$text) ## Remove RT
+x$text <- gsub("#\\S+", " ",x$text) ## Remove Hashtags
+x$text <- gsub("@\\S+", " ",x$text) ## Remove Mentions
+x$text <- gsub("\n", " ", x$text) ## Remove \n
+x$text <- gsub(pattern = "\\$\\w*", " ", x$text) #Remove words starting with $
+x$text <- gsub("<(.*)>", " ", x$text) #Remove Unicodes like <U+A>
+x$text <- gsub("[[:cntrl:]]", " ", x$text) ## Remove Controls and special characters
+x$text <- gsub("[[:punct:]]", " ", x$text) ## Remove Punctuations
+x$text <- gsub("[[:digit:]]+", " ", x$text) ## Remove numbers
+x$text <- gsub("^[[:space:]]*","", x$text) ## Remove leading whitespaces
+x$text <- gsub("[[:space:]]*$"," ", x$text) ## Remove trailing whitespaces
+x$text <- gsub(" *\\b[[:alpha:]]{1}\\b *", " ", x$text) ## Remove 1 letter words
+x$text <- removeWords(x$text, stopwords("english"))
+x$text <- tolower(x$text)
+x$text <- gsub(" +"," ", x$text) ## Remove extra whitespaces
+
+
+head(x$text, 20)
+
+# Remove duplicate text
+x <- x[!duplicated(x$text),]
+
+head(x$text, 20)
+str(x)
+
+
+# build a corpus, and specify the source to be character vectors 
+myCorpus <- Corpus(VectorSource(x$text))
+view(myCorpus)
+
+# Document Matrix
+tdm <- TermDocumentMatrix(myCorpus,control = list(wordlengths = c(1,Inf)))
+str(tdm)
+#tdm error
+
+#inspect frequent words
+termFreq <- rowSums(as.matrix(tdm))
+termFreq <- subset(termFreq, termFreq >=20)
+df <- data.frame(term = names(termFreq), freq = termFreq)
+df <- df[order(-df$freq),]
+head(df)
+wordcloud2(df)
+
+
+# Tidy Data
+
+x_Tidy <- saotd::tweet_tidy(DataFrame = x)
+
+str(x_Tidy)
+
+x_Tidy$Token [1:10]%>% 
+  knitr::kable()
+
+saotd::unigram(DataFrame = x_Tidy) %>% 
+  dplyr::top_n(10) %>% 
+  knitr::kable(caption = "Twitter data Uni-Grams")
+
+saotd::bigram(DataFrame =x_Tidy) %>% 
+  dplyr::top_n(15) %>% 
+  knitr::kable(caption = "Twitter data Bi-Grams")
+
+saotd::trigram(DataFrame = x_Tidy) %>% 
+  dplyr::top_n(10) %>% 
+  knitr::kable(caption = "Twitter data Tri-Grams")
+
+saotd::posneg_words(DataFrameTidy = x_Tidy, 
+                    num_words = 10)
+
+
+# Sentiment Analysis
+
+#Select desired column
+cleanTweets <- x%>% 
+  select("text")
+
+str(x)
+head(cleanTweets)
+View(cleanTweets)
+
+
+#Analyze sentiment
+sentiment <- analyzeSentiment(cleanTweets)
+#Extract dictionary-based sentiment according to the QDAP dictionary
+sentiment2 <- sentiment$SentimentQDAP
+#View sentiment direction (i.e. positive, neutral and negative)
+sentiment3 <- convertToDirection(sentiment$SentimentQDAP)
+
+
+str(sentiment)
+head(sentiment)
+head(sentiment2)
+head(sentiment3)
+
+#Extract and convert 'date' column
+date <- x$created
+date <- str_extract(date, "\\d{4}-\\d{2}-\\d{2}")
+date <- as.Date(date)
+date <- as.Date(date, format = "%m/%d/%y")  
+
+head(date)
+
+
+#Create new dataframe with desired columns
+df <- cbind(cleanTweets, sentiment2, sentiment3, date)
+str(df)
+head(df)
+
+#Remove rows with NA  
+df <- df[complete.cases(df), ]
+
+str(df)
+
+#Calculate the average of daily sentiment score
+df2 <- df %>% 
+  group_by(date) %>%
+  summarize(meanSentiment = mean(sentiment2, na.rm=TRUE))
+
+DT::datatable(df2, editable = TRUE)
+
+head(df2)
+
+#Get frquency of each sentiment i.e. positive, neutral, and negative  
+freq <- df %>% 
+  group_by(date,sentiment3) %>% 
+  summarise(Freq=n())
+
+head(freq)
+
+#Convert data from long to wide
+freq2 <- freq %>% 
+  spread(key = sentiment3, value = Freq)
+
+head(freq2)
+
+
+p <-ggplot() + 
+  geom_bar(mapping = aes(x = freq$date, y = freq$Freq, fill = freq$sentiment3), stat = "identity") +
+  ylab('Sentiment Frequency') +
+  xlab('Date')
+p
+
+
+#Plot mean sentiment scores
+p1 <- ggplot(data=df2, aes(x=date,y=meanSentiment, group=1)) +
+  geom_line()+
+  geom_point() +
+  ylab("Mean Twitter Sentiment Score")
+
+plot1 <- p1
+
+plot1
+
+
+
+getSymbols ("GOOGL", src="yahoo", from="2020-01-03", to="2020-02-05")
+
+GOOGL.1 <- data.frame(Date=index(GOOGL), coredata(GOOGL))
+
+mu <- mean(GOOGL.1$GOOGL.Close)
+sd <- sd(GOOGL.1$GOOGL.Close)
+googl2 <- GOOGL.1 %>% 
+  mutate(zScore = (GOOGL.1$GOOGL.Close-mu)/sd)
+
+str(googl2)
+head(googl2)
+range(googl2$zScore)
+
+p2 <- ggplot(data=googl2, aes(x=GOOGL.1$Date, y=zScore, group=1)) +
+  geom_line()+
+  geom_point() +
+  ylab("Z-Score of closing stock price")
+scale_x_date(date_breaks = "1 day", 
+             limits = as.Date(c('2020-01-27','2020-01-31')))
+
+plot2 <- p2
+
+p2
+
+
+#Plot both data on same plot
+p3 <- ggplot() + 
+  geom_line(mapping = aes(x = GOOGL.1$Date, y = googl2$zScore), size = 1) + 
+  geom_line(mapping = aes(x = df2$date, y = df2$meanSentiment*20), size = 1, color = "blue") +
+  scale_x_date(name = "Date", labels = NULL) +
+  scale_y_continuous(name = "z-Score of Closing Stock Price", 
+                     #Scale 2nd y-axis by factor of 20
+                     sec.axis = sec_axis(~./20, name = "Sentiment Score")) + 
+  theme(
+    axis.title.y = element_text(color = "grey"),
+    axis.title.y.right = element_text(color = "blue"))
+
+p3
+
+#Plot both data on same plot
+#Shift stock prices back one day
+plot(df2$date,df2$meanSentiment, type="l", col="red3",  xlab='Date', ylab='Mean Sentiment Score')
+
+par(new=TRUE)
+
+plot(GOOGL.1$Date, googl2$zScore, type="l", axes=F, xlab=NA, ylab=NA, col="blue")
+axis(side = 4)
+mtext(side = 4, line = 3, 'Closing Stock Price z-Score')
+
+
+##############################
+
+fi <- data.frame(date1 = googl2$Date[2:6], zscore =  googl2$zScore[2:6], date2 =  
+df2$date[4:8], mean = df2$meanSentiment[4:8])
+fi1 <- data.frame(date1 = googl2$Date[7:11], zscore = googl2$zScore[7:11], date2 = df2$date[11:15], mean = df2$meanSentiment[11:15])
+fi2 <- data.frame(date1 = googl2$Date[12:15], zscore = googl2$zScore[12:15], date2 = df2$date[19:22], mean = df2$meanSentiment[19:22])
+fi3 <- data.frame(date1 = googl2$Date[16:20], zscore = googl2$zScore[16:20], date2 = df2$date[25:29], mean = df2$meanSentiment[25:29])
+
+fii <- rbind(fi, fi1, fi2, fi3)
+head(fii)
+
+#cor(x, y, method = c("pearson", "kendall", "spearman"))
+#cor.test(x, y, method=c("pearson", "kendall", "spearman"))
+
+# No relationship
